@@ -1,17 +1,42 @@
 <script setup>
+import { onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useInventoryStore } from '../../store/inventoryStore'
+import { useWeaponStore } from '../../store/weaponStore'
+import { WEAPONS } from '../../game/combat/weapons'
 
 const inventoryStore = useInventoryStore()
 const { slots, totalWeight } = storeToRefs(inventoryStore)
+
+const weaponStore = useWeaponStore()
+const { equipped, equippedProgress } = storeToRefs(weaponStore)
+
+const isOpen = ref(false)
+
+function onKeydown(event) {
+  if (event.key === 'Tab') {
+    event.preventDefault()
+    isOpen.value = !isOpen.value
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <div class="inventory">
+  <div v-if="isOpen" class="inventory">
     <div class="inventory__header">
       <span>Inventory</span>
       <span class="inventory__weight">{{ totalWeight.toFixed(1) }} kg</span>
     </div>
+
+    <div class="inventory__equipped">
+      <span class="inventory__equipped-label">Equipped</span>
+      <span class="inventory__equipped-name">{{ WEAPONS[equipped].label }}</span>
+      <span class="inventory__equipped-level">Lv {{ equippedProgress.level }}</span>
+    </div>
+
     <div class="inventory__grid">
       <div v-for="(slot, index) in slots" :key="index" class="inventory__slot">
         <template v-if="slot">
@@ -47,6 +72,33 @@ const { slots, totalWeight } = storeToRefs(inventoryStore)
 }
 
 .inventory__weight {
+  color: #c9a35c;
+}
+
+.inventory__equipped {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  margin-bottom: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+.inventory__equipped-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.6rem;
+  color: #9c9c9c;
+}
+
+.inventory__equipped-name {
+  flex: 1;
+  font-weight: bold;
+}
+
+.inventory__equipped-level {
   color: #c9a35c;
 }
 

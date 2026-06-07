@@ -3,12 +3,14 @@ import { EventBus } from '../EventBus'
 import { Player } from '../entities/Player'
 import { ResourceNode, RESOURCE_NODE_TYPES } from '../entities/ResourceNode'
 import { Enemy } from '../entities/Enemy'
+import { Chest } from '../entities/Chest'
 import { WEAPONS, unlockedSkills } from '../combat/weapons'
 
 const WORLD_SIZE = 1600
 const TILE_SIZE = 64
 const NODE_COUNT = 40
 const ENEMY_COUNT = 10
+const CHEST_COUNT = 6
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -26,6 +28,9 @@ export class MainGame extends Phaser.Scene {
     this.harvestTarget = null
     this.spawnResourceNodes()
 
+    this.chestTarget = null
+    this.spawnChests()
+
     this.combatTarget = null
     this.equippedWeapon = 'sword'
     this.weaponLevel = 1
@@ -37,6 +42,7 @@ export class MainGame extends Phaser.Scene {
       this.player.moveTo(world.x, world.y)
       this.harvestTarget = null
       this.combatTarget = null
+      this.chestTarget = null
     })
 
     EventBus.on('hotbar-input', this.onHotbarInput, this)
@@ -96,6 +102,40 @@ export class MainGame extends Phaser.Scene {
       EventBus.emit('item-gathered', loot)
     })
     this.harvestTarget = null
+  }
+
+  spawnChests() {
+    this.chests = this.add.group()
+    const spawnMargin = TILE_SIZE * 2
+
+    for (let i = 0; i < CHEST_COUNT; i++) {
+      const x = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
+      const y = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
+      const chest = new Chest(this, x, y)
+      chest.on('pointerdown', (pointer, _x, _y, event) => {
+        event.stopPropagation()
+        this.harvestTarget = null
+        this.combatTarget = null
+        this.chestTarget = chest
+        this.player.moveTo(chest.x, chest.y)
+      })
+      this.chests.add(chest)
+    }
+  }
+
+  pursueChestTarget() {
+    const chest = this.chestTarget
+    if (!chest || !chest.active || chest.opened) {
+      this.chestTarget = null
+      return
+    }
+
+    if (!chest.isInRange(this.player)) return
+
+    this.player.moveTo(this.player.x, this.player.y)
+    const loot = chest.open()
+    if (loot) loot.forEach((drop) => EventBus.emit('item-gathered', drop))
+    this.chestTarget = null
   }
 
   spawnEnemies() {
@@ -190,6 +230,7 @@ export class MainGame extends Phaser.Scene {
     this.player?.update()
     this.enemies?.getChildren().forEach((enemy) => enemy.update())
     this.pursueHarvestTarget()
+    this.pursueChestTarget()
     this.pursueCombatTarget(time)
   }
 }

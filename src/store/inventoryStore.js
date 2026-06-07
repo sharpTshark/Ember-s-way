@@ -7,6 +7,7 @@ const ITEM_DEFS = {
   wood: { label: 'Wood', color: '#9a6b3f', weight: 1 },
   ore: { label: 'Ore', color: '#a8a8a8', weight: 2 },
   berries: { label: 'Berries', color: '#c43f5e', weight: 0.5 },
+  gold: { label: 'Gold', color: '#e8c547', weight: 0.1 },
 }
 
 export const useInventoryStore = defineStore('inventory', () => {
