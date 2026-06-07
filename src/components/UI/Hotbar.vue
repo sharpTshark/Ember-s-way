@@ -1,16 +1,28 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { EventBus } from '../../game/EventBus'
+import { useWeaponStore } from '../../store/weaponStore'
+import { WEAPONS } from '../../game/combat/weapons'
 
-const slots = [
-  { key: '1', label: 'Skill I' },
-  { key: '2', label: 'Skill II' },
-  { key: '3', label: 'Skill III' },
-]
+const KEYS = ['1', '2', '3']
+
+const weaponStore = useWeaponStore()
+const { equipped, equippedSkills, equippedProgress } = storeToRefs(weaponStore)
+
+const slots = computed(() =>
+  KEYS.map((key, index) => ({
+    key,
+    skill: equippedSkills.value.find((s) => s.slot === index) ?? null,
+  }))
+)
+
+const weaponLabel = computed(() => `${WEAPONS[equipped.value].label} · Lv ${equippedProgress.value.level}`)
 
 const activeIndex = ref(null)
 
 function triggerSlot(index) {
+  if (!slots.value[index].skill) return
   activeIndex.value = index
   EventBus.emit('hotbar-input', index)
   setTimeout(() => {
@@ -19,7 +31,7 @@ function triggerSlot(index) {
 }
 
 function onKeydown(event) {
-  const index = slots.findIndex((slot) => slot.key === event.key)
+  const index = KEYS.indexOf(event.key)
   if (index !== -1) triggerSlot(index)
 }
 
@@ -28,26 +40,44 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <div class="hotbar">
-    <button
-      v-for="(slot, index) in slots"
-      :key="slot.key"
-      class="hotbar__slot"
-      :class="{ 'hotbar__slot--active': activeIndex === index }"
-      @click="triggerSlot(index)"
-    >
-      <span class="hotbar__key">{{ slot.key }}</span>
-      <span class="hotbar__label">{{ slot.label }}</span>
-    </button>
+  <div class="hotbar-wrap">
+    <div class="hotbar-wrap__weapon">{{ weaponLabel }}</div>
+    <div class="hotbar">
+      <button
+        v-for="(slot, index) in slots"
+        :key="slot.key"
+        class="hotbar__slot"
+        :class="{ 'hotbar__slot--active': activeIndex === index, 'hotbar__slot--locked': !slot.skill }"
+        @click="triggerSlot(index)"
+      >
+        <span class="hotbar__key">{{ slot.key }}</span>
+        <span class="hotbar__label">{{ slot.skill ? slot.skill.label : 'Locked' }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.hotbar {
+.hotbar-wrap {
   position: absolute;
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.hotbar-wrap__weapon {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #c9a35c;
+  text-shadow: 0 0 3px #000;
+}
+
+.hotbar {
   display: flex;
   gap: 0.5rem;
 }
@@ -71,6 +101,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .hotbar__slot--active {
   background: rgba(242, 193, 78, 0.35);
   border-color: #f2c14e;
+}
+
+.hotbar__slot--locked {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .hotbar__key {

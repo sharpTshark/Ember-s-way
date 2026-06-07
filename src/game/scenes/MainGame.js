@@ -2,10 +2,13 @@ import Phaser from 'phaser'
 import { EventBus } from '../EventBus'
 import { Player } from '../entities/Player'
 import { ResourceNode, RESOURCE_NODE_TYPES } from '../entities/ResourceNode'
+import { Enemy } from '../entities/Enemy'
+import { WEAPONS, unlockedSkills } from '../combat/weapons'
 
 const WORLD_SIZE = 1600
 const TILE_SIZE = 64
 const NODE_COUNT = 40
+const ENEMY_COUNT = 10
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -23,15 +26,26 @@ export class MainGame extends Phaser.Scene {
     this.harvestTarget = null
     this.spawnResourceNodes()
 
+    this.combatTarget = null
+    this.equippedWeapon = 'sword'
+    this.weaponLevel = 1
+    this.lastAttackAt = 0
+    this.spawnEnemies()
+
     this.input.on('pointerdown', (pointer) => {
       const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
       this.player.moveTo(world.x, world.y)
       this.harvestTarget = null
+      this.combatTarget = null
     })
 
     EventBus.on('hotbar-input', this.onHotbarInput, this)
+    EventBus.on('weapon-equipped', this.onWeaponEquipped, this)
+    EventBus.on('weapon-progress', this.onWeaponProgress, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       EventBus.off('hotbar-input', this.onHotbarInput, this)
+      EventBus.off('weapon-equipped', this.onWeaponEquipped, this)
+      EventBus.off('weapon-progress', this.onWeaponProgress, this)
     })
 
     // Placeholder survival stats, sent to Vue via the bridge until real systems exist.
@@ -84,6 +98,72 @@ export class MainGame extends Phaser.Scene {
     this.harvestTarget = null
   }
 
+  spawnEnemies() {
+    this.enemies = this.add.group()
+    const spawnMargin = TILE_SIZE * 2
+
+    for (let i = 0; i < ENEMY_COUNT; i++) {
+      const x = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
+      const y = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
+      const enemy = new Enemy(this, x, y)
+      enemy.on('pointerdown', (pointer, _x, _y, event) => {
+        event.stopPropagation()
+        this.harvestTarget = null
+        this.combatTarget = enemy
+        this.player.moveTo(enemy.x, enemy.y)
+      })
+      this.enemies.add(enemy)
+    }
+  }
+
+  pursueCombatTarget(time) {
+    const enemy = this.combatTarget
+    if (!enemy || !enemy.active || enemy.dead) {
+      this.combatTarget = null
+      return
+    }
+
+    const weapon = WEAPONS[this.equippedWeapon]
+    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
+
+    if (distance > weapon.range) {
+      this.player.moveTo(enemy.x, enemy.y)
+      return
+    }
+
+    this.player.moveTo(this.player.x, this.player.y)
+    if (time - this.lastAttackAt < weapon.cooldownMs) return
+
+    this.lastAttackAt = time
+    const damage = Phaser.Math.Between(weapon.minDamage, weapon.maxDamage)
+    enemy.takeDamage(damage)
+    EventBus.emit('weapon-hit', { weaponId: this.equippedWeapon, xp: weapon.xpPerHit, damage })
+
+    if (enemy.dead) this.combatTarget = null
+  }
+
+  onWeaponEquipped(weaponId) {
+    if (WEAPONS[weaponId]) this.equippedWeapon = weaponId
+  }
+
+  onWeaponProgress({ weaponId, level }) {
+    if (weaponId === this.equippedWeapon) this.weaponLevel = level
+  }
+
+  castSkill(skill) {
+    const enemy = this.combatTarget
+    const targetText = enemy && enemy.active && !enemy.dead ? ' on target' : ''
+    console.log(`[MainGame] cast ${skill.label} (${skill.id})${targetText}`)
+
+    if (enemy && enemy.active && !enemy.dead) {
+      const weapon = WEAPONS[this.equippedWeapon]
+      const damage = Phaser.Math.Between(weapon.minDamage, weapon.maxDamage) * 2
+      enemy.takeDamage(damage)
+      EventBus.emit('weapon-hit', { weaponId: this.equippedWeapon, xp: weapon.xpPerHit, damage })
+      if (enemy.dead) this.combatTarget = null
+    }
+  }
+
   drawGroundGrid() {
     const graphics = this.add.graphics()
     graphics.lineStyle(1, 0x2f3a2f, 0.6)
@@ -98,12 +178,18 @@ export class MainGame extends Phaser.Scene {
   }
 
   onHotbarInput(slotIndex) {
-    // Temporary proof that Vue input reaches Phaser; replaced by real skill dispatch later.
-    console.log(`[MainGame] hotbar slot ${slotIndex} triggered`)
+    const skill = unlockedSkills(this.equippedWeapon, this.weaponLevel).find((s) => s.slot === slotIndex)
+    if (!skill) {
+      console.log(`[MainGame] hotbar slot ${slotIndex}: no skill unlocked yet`)
+      return
+    }
+    this.castSkill(skill)
   }
 
-  update() {
+  update(time) {
     this.player?.update()
+    this.enemies?.getChildren().forEach((enemy) => enemy.update())
     this.pursueHarvestTarget()
+    this.pursueCombatTarget(time)
   }
 }
