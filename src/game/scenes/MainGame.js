@@ -1,9 +1,11 @@
 import Phaser from 'phaser'
 import { EventBus } from '../EventBus'
 import { Player } from '../entities/Player'
+import { ResourceNode, RESOURCE_NODE_TYPES } from '../entities/ResourceNode'
 
 const WORLD_SIZE = 1600
 const TILE_SIZE = 64
+const NODE_COUNT = 40
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -18,9 +20,13 @@ export class MainGame extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE)
     this.cameras.main.startFollow(this.player, true)
 
+    this.harvestTarget = null
+    this.spawnResourceNodes()
+
     this.input.on('pointerdown', (pointer) => {
       const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
       this.player.moveTo(world.x, world.y)
+      this.harvestTarget = null
     })
 
     EventBus.on('hotbar-input', this.onHotbarInput, this)
@@ -37,6 +43,45 @@ export class MainGame extends Phaser.Scene {
     })
 
     EventBus.emit('current-scene-ready', this)
+  }
+
+  spawnResourceNodes() {
+    this.resourceNodes = this.add.group()
+    const spawnMargin = TILE_SIZE * 2
+
+    for (let i = 0; i < NODE_COUNT; i++) {
+      const type = Phaser.Utils.Array.GetRandom(RESOURCE_NODE_TYPES)
+      const x = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
+      const y = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
+      const node = new ResourceNode(this, x, y, type)
+      node.on('pointerdown', (pointer, _x, _y, event) => {
+        event.stopPropagation()
+        this.harvestTarget = node
+        this.player.moveTo(node.x, node.y)
+      })
+      this.resourceNodes.add(node)
+    }
+  }
+
+  pursueHarvestTarget() {
+    const node = this.harvestTarget
+    if (!node || !node.active) {
+      this.harvestTarget = null
+      return
+    }
+
+    if (node.depleted) {
+      this.harvestTarget = null
+      return
+    }
+
+    if (!node.isInRange(this.player)) return
+
+    this.player.moveTo(this.player.x, this.player.y)
+    node.harvest((loot) => {
+      EventBus.emit('item-gathered', loot)
+    })
+    this.harvestTarget = null
   }
 
   drawGroundGrid() {
@@ -59,5 +104,6 @@ export class MainGame extends Phaser.Scene {
 
   update() {
     this.player?.update()
+    this.pursueHarvestTarget()
   }
 }

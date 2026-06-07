@@ -2,12 +2,14 @@
 import PhaserGame from './PhaserGame.vue'
 import HUD from './components/UI/HUD.vue'
 import Hotbar from './components/UI/Hotbar.vue'
+import InventoryGrid from './components/UI/InventoryGrid.vue'
 </script>
 
 <template>
   <div class="app-shell">
     <PhaserGame />
     <HUD />
+    <InventoryGrid />
     <Hotbar />
   </div>
 </template>
