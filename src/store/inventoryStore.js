@@ -4,10 +4,10 @@ import { ref, computed } from 'vue'
 export const INVENTORY_SLOT_COUNT = 16
 
 const ITEM_DEFS = {
-  wood: { label: 'Wood', color: '#9a6b3f', weight: 1 },
-  ore: { label: 'Ore', color: '#a8a8a8', weight: 2 },
-  berries: { label: 'Berries', color: '#c43f5e', weight: 0.5 },
-  gold: { label: 'Gold', color: '#e8c547', weight: 0.1 },
+  wood: { label: 'Wood', color: '#9a6b3f', weight: 1, icon: 'wood' },
+  ore: { label: 'Stone', color: '#a8a8a8', weight: 2, icon: 'stone' },
+  berries: { label: 'Raw Meat', color: '#c43f5e', weight: 0.5, icon: 'raw_meat' },
+  gold: { label: 'Unknown Relic', color: '#b15ce0', weight: 0.1, icon: 'relic' },
 }
 
 export const useInventoryStore = defineStore('inventory', () => {

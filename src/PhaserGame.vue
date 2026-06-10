@@ -5,6 +5,7 @@ import { EventBus } from './game/EventBus'
 import { usePlayerStore } from './store/playerStore'
 import { useInventoryStore } from './store/inventoryStore'
 import { useWeaponStore } from './store/weaponStore'
+import { useRunStore } from './store/runStore'
 
 const containerRef = ref(null)
 let game = null
@@ -12,9 +13,14 @@ let game = null
 const playerStore = usePlayerStore()
 const inventoryStore = useInventoryStore()
 const weaponStore = useWeaponStore()
+const runStore = useRunStore()
 
 function onPlayerStats(stats) {
   playerStore.applyStats(stats)
+}
+
+function onExtractionTimer(payload) {
+  runStore.applyExtractionTimer(payload)
 }
 
 function onItemGathered({ item, amount }) {
@@ -32,6 +38,7 @@ onMounted(() => {
   EventBus.on('player-stats', onPlayerStats)
   EventBus.on('item-gathered', onItemGathered)
   EventBus.on('weapon-hit', onWeaponHit)
+  EventBus.on('extraction-timer', onExtractionTimer)
   EventBus.emit('weapon-equipped', weaponStore.equipped)
 })
 
@@ -39,6 +46,7 @@ onUnmounted(() => {
   EventBus.off('player-stats', onPlayerStats)
   EventBus.off('item-gathered', onItemGathered)
   EventBus.off('weapon-hit', onWeaponHit)
+  EventBus.off('extraction-timer', onExtractionTimer)
   game?.destroy(true)
   game = null
 })

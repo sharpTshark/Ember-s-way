@@ -52,15 +52,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 <style scoped>
 .inventory {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 14rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 16rem;
   padding: 0.75rem;
-  background: rgba(10, 12, 10, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 12, 10, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
   color: #e8e8e8;
   font-size: 0.75rem;
+  pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
 .inventory__header {

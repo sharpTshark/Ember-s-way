@@ -55,12 +55,15 @@ export class MainGame extends Phaser.Scene {
     })
 
     // Placeholder survival stats, sent to Vue via the bridge until real systems exist.
-    this.stats = { health: 100, hunger: 100, thirst: 100, warmth: 100, sanity: 100, energy: 100 }
+    this.stats = { health: 100, stamina: 100, hunger: 100, thirst: 100, warmth: 100, sanity: 100, energy: 100 }
     this.statsTimer = this.time.addEvent({
       delay: 500,
       loop: true,
       callback: () => EventBus.emit('player-stats', { ...this.stats }),
     })
+
+    this.startExtractionTimer()
+    this.setupMinimapCamera()
 
     EventBus.emit('current-scene-ready', this)
   }
@@ -204,6 +207,52 @@ export class MainGame extends Phaser.Scene {
     }
   }
 
+  startExtractionTimer() {
+    const totalSeconds = 10 * 60
+    this.extractionRemaining = totalSeconds
+
+    EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination: 'RUINED PLAZA' })
+
+    this.extractionTimer = this.time.addEvent({
+      delay: 1000,
+      loop: true,
+      callback: () => {
+        this.extractionRemaining = Math.max(0, this.extractionRemaining - 1)
+        EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination: 'RUINED PLAZA' })
+      },
+    })
+  }
+
+  setupMinimapCamera() {
+    const minimapSize = 160
+    const padding = 16
+
+    this.minimapCamera = this.cameras
+      .add(0, 0, minimapSize, minimapSize)
+      .setZoom(minimapSize / WORLD_SIZE)
+      .setName('minimap')
+      .setBackgroundColor(0x10160f)
+
+    this.minimapCamera.scrollX = 0
+    this.minimapCamera.scrollY = 0
+
+    const positionMinimap = () => {
+      const { width, height } = this.scale
+      this.minimapCamera.setViewport(width - minimapSize - padding, padding, minimapSize, minimapSize)
+    }
+    positionMinimap()
+    this.scale.on('resize', positionMinimap)
+
+    const border = this.add
+      .rectangle(0, 0, minimapSize, minimapSize)
+      .setStrokeStyle(2, 0xc9a35c)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(1000)
+    border.setPosition(this.scale.width - minimapSize - padding, padding)
+    this.minimapCamera.ignore(border)
+  }
+
   drawGroundGrid() {
     const graphics = this.add.graphics()
     graphics.lineStyle(1, 0x2f3a2f, 0.6)
@@ -215,6 +264,10 @@ export class MainGame extends Phaser.Scene {
     }
 
     this.add.rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, 0x1c241c).setDepth(-1)
+
+    // Extraction point: "Ruined Plaza" — placeholder archway in the world's corner.
+    const margin = TILE_SIZE * 1.5
+    this.add.rectangle(margin, margin, 56, 72, 0x4a4338).setStrokeStyle(2, 0xc9a35c)
   }
 
   onHotbarInput(slotIndex) {
