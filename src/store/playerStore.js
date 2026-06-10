@@ -1,14 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { gameConfig } from '../config/gameConfig'
 
 export const usePlayerStore = defineStore('player', () => {
-  const health = ref(100)
-  const stamina = ref(100)
-  const hunger = ref(100)
-  const thirst = ref(100)
-  const warmth = ref(100)
-  const sanity = ref(100)
-  const energy = ref(100)
+  const starting = gameConfig.player.startingStats
+  const health = ref(starting.health)
+  const stamina = ref(starting.stamina)
+  const hunger = ref(starting.hunger)
+  const thirst = ref(starting.thirst)
+  const warmth = ref(starting.warmth)
+  const sanity = ref(starting.sanity)
+  const energy = ref(starting.energy)
 
   function applyStats(stats) {
     if (stats.health !== undefined) health.value = stats.health

@@ -1,15 +1,17 @@
 <script setup>
 import { storeToRefs } from 'pinia'
 import { useWeaponStore } from '../../store/weaponStore'
+import { gameConfig } from '../../config/gameConfig'
 
 const { equippedProgress } = storeToRefs(useWeaponStore())
+const title = gameConfig.meta.title
 
 const xpPercent = () => Math.round((equippedProgress.value.currentXp / equippedProgress.value.xpToNext) * 100)
 </script>
 
 <template>
   <div class="title-header">
-    <h1 class="title-header__title">Reliquary Drift</h1>
+    <h1 class="title-header__title">{{ title }}</h1>
     <div class="title-header__xp-track">
       <div class="title-header__xp-fill" :style="{ width: `${xpPercent()}%` }" />
     </div>

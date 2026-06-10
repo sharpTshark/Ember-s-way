@@ -1,15 +1,15 @@
 import Phaser from 'phaser'
+import { gameConfig } from '../../config/gameConfig'
 
-const WANDER_RADIUS = 80
-const WANDER_SPEED = 40
+const { size, color, maxHealth, wanderRadius, wanderSpeed } = gameConfig.enemies
 
 export class Enemy extends Phaser.GameObjects.Rectangle {
   constructor(scene, x, y) {
-    super(scene, x, y, 22, 22, 0xb33f3f)
+    super(scene, x, y, size, size, color)
     this.scene = scene
     this.homeX = x
     this.homeY = y
-    this.maxHealth = 30
+    this.maxHealth = maxHealth
     this.health = this.maxHealth
     this.dead = false
 
@@ -31,7 +31,7 @@ export class Enemy extends Phaser.GameObjects.Rectangle {
   pickWanderTarget() {
     if (this.dead) return
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-    const radius = Phaser.Math.FloatBetween(0, WANDER_RADIUS)
+    const radius = Phaser.Math.FloatBetween(0, wanderRadius)
     this.wanderTarget = {
       x: this.homeX + Math.cos(angle) * radius,
       y: this.homeY + Math.sin(angle) * radius,
@@ -80,7 +80,7 @@ export class Enemy extends Phaser.GameObjects.Rectangle {
       this.body.setVelocity(0, 0)
     } else {
       const angle = Math.atan2(dy, dx)
-      this.body.setVelocity(Math.cos(angle) * WANDER_SPEED, Math.sin(angle) * WANDER_SPEED)
+      this.body.setVelocity(Math.cos(angle) * wanderSpeed, Math.sin(angle) * wanderSpeed)
     }
 
     this.healthBarBg.setPosition(this.x, this.y - 20)

@@ -1,11 +1,11 @@
 import Phaser from 'phaser'
+import { gameConfig } from '../../config/gameConfig'
 
-const MOVE_SPEED = 160
-const ARRIVE_THRESHOLD = 4
+const { size, color, moveSpeed, arriveThreshold } = gameConfig.player
 
 export class Player extends Phaser.GameObjects.Rectangle {
   constructor(scene, x, y) {
-    super(scene, x, y, 24, 24, 0xf2c14e)
+    super(scene, x, y, size, size, color)
     scene.add.existing(this)
     scene.physics.add.existing(this)
 
@@ -27,13 +27,13 @@ export class Player extends Phaser.GameObjects.Rectangle {
     const dy = this.target.y - this.y
     const distance = Math.hypot(dx, dy)
 
-    if (distance < ARRIVE_THRESHOLD) {
+    if (distance < arriveThreshold) {
       this.body.setVelocity(0, 0)
       this.target = null
       return
     }
 
     const angle = Math.atan2(dy, dx)
-    this.body.setVelocity(Math.cos(angle) * MOVE_SPEED, Math.sin(angle) * MOVE_SPEED)
+    this.body.setVelocity(Math.cos(angle) * moveSpeed, Math.sin(angle) * moveSpeed)
   }
 }

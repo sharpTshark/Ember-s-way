@@ -5,12 +5,13 @@ import { ResourceNode, RESOURCE_NODE_TYPES } from '../entities/ResourceNode'
 import { Enemy } from '../entities/Enemy'
 import { Chest } from '../entities/Chest'
 import { WEAPONS, unlockedSkills } from '../combat/weapons'
+import { gameConfig } from '../../config/gameConfig'
 
-const WORLD_SIZE = 1600
-const TILE_SIZE = 64
-const NODE_COUNT = 40
-const ENEMY_COUNT = 10
-const CHEST_COUNT = 6
+const WORLD_SIZE = gameConfig.world.size
+const TILE_SIZE = gameConfig.world.tileSize
+const NODE_COUNT = gameConfig.resourceNodes.spawnCount
+const ENEMY_COUNT = gameConfig.enemies.spawnCount
+const CHEST_COUNT = gameConfig.chests.spawnCount
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -32,7 +33,7 @@ export class MainGame extends Phaser.Scene {
     this.spawnChests()
 
     this.combatTarget = null
-    this.equippedWeapon = 'sword'
+    this.equippedWeapon = gameConfig.startingWeapon
     this.weaponLevel = 1
     this.lastAttackAt = 0
     this.spawnEnemies()
@@ -55,7 +56,7 @@ export class MainGame extends Phaser.Scene {
     })
 
     // Placeholder survival stats, sent to Vue via the bridge until real systems exist.
-    this.stats = { health: 100, stamina: 100, hunger: 100, thirst: 100, warmth: 100, sanity: 100, energy: 100 }
+    this.stats = { ...gameConfig.player.startingStats }
     this.statsTimer = this.time.addEvent({
       delay: 500,
       loop: true,
@@ -208,30 +209,29 @@ export class MainGame extends Phaser.Scene {
   }
 
   startExtractionTimer() {
-    const totalSeconds = 10 * 60
-    this.extractionRemaining = totalSeconds
+    const { durationSeconds, destination } = gameConfig.extraction
+    this.extractionRemaining = durationSeconds
 
-    EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination: 'RUINED PLAZA' })
+    EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination })
 
     this.extractionTimer = this.time.addEvent({
       delay: 1000,
       loop: true,
       callback: () => {
         this.extractionRemaining = Math.max(0, this.extractionRemaining - 1)
-        EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination: 'RUINED PLAZA' })
+        EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination })
       },
     })
   }
 
   setupMinimapCamera() {
-    const minimapSize = 160
-    const padding = 16
+    const { size: minimapSize, padding, backgroundColor, borderColor } = gameConfig.minimap
 
     this.minimapCamera = this.cameras
       .add(0, 0, minimapSize, minimapSize)
       .setZoom(minimapSize / WORLD_SIZE)
       .setName('minimap')
-      .setBackgroundColor(0x10160f)
+      .setBackgroundColor(backgroundColor)
 
     this.minimapCamera.scrollX = 0
     this.minimapCamera.scrollY = 0
@@ -245,7 +245,7 @@ export class MainGame extends Phaser.Scene {
 
     const border = this.add
       .rectangle(0, 0, minimapSize, minimapSize)
-      .setStrokeStyle(2, 0xc9a35c)
+      .setStrokeStyle(2, borderColor)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(1000)

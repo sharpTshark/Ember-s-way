@@ -1,12 +1,8 @@
 import Phaser from 'phaser'
+import { gameConfig } from '../../config/gameConfig'
 
-const NODE_CONFIG = {
-  tree: { color: 0x3f6b3a, size: 28, item: 'wood', amount: [1, 3], harvestTimeMs: 900, label: 'Tree' },
-  rock: { color: 0x8a8a8a, size: 24, item: 'ore', amount: [1, 2], harvestTimeMs: 1300, label: 'Rock' },
-  bush: { color: 0x6b8e3a, size: 18, item: 'berries', amount: [1, 4], harvestTimeMs: 600, label: 'Bush' },
-}
-
-const INTERACT_RANGE = 64
+const NODE_CONFIG = gameConfig.resourceNodes.types
+const INTERACT_RANGE = gameConfig.resourceNodes.interactRange
 
 export class ResourceNode extends Phaser.GameObjects.Rectangle {
   constructor(scene, x, y, type) {

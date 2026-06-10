@@ -1,14 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { gameConfig } from '../config/gameConfig'
 
-export const INVENTORY_SLOT_COUNT = 16
-
-const ITEM_DEFS = {
-  wood: { label: 'Wood', color: '#9a6b3f', weight: 1, icon: 'wood' },
-  ore: { label: 'Stone', color: '#a8a8a8', weight: 2, icon: 'stone' },
-  berries: { label: 'Raw Meat', color: '#c43f5e', weight: 0.5, icon: 'raw_meat' },
-  gold: { label: 'Unknown Relic', color: '#b15ce0', weight: 0.1, icon: 'relic' },
-}
+export const INVENTORY_SLOT_COUNT = gameConfig.inventorySlotCount
+const ITEM_DEFS = gameConfig.items
 
 export const useInventoryStore = defineStore('inventory', () => {
   // Each slot is either null or { item, amount }

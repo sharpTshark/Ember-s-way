@@ -1,12 +1,8 @@
 import Phaser from 'phaser'
+import { gameConfig } from '../../config/gameConfig'
 
-const INTERACT_RANGE = 64
-const LOOT_TABLE = [
-  { item: 'wood', amount: [2, 6], weight: 3 },
-  { item: 'ore', amount: [1, 4], weight: 3 },
-  { item: 'berries', amount: [2, 5], weight: 2 },
-  { item: 'gold', amount: [5, 25], weight: 1 },
-]
+const INTERACT_RANGE = gameConfig.chests.interactRange
+const LOOT_TABLE = gameConfig.chests.lootTable
 
 function rollLoot() {
   const totalWeight = LOOT_TABLE.reduce((sum, entry) => sum + entry.weight, 0)
@@ -47,7 +43,7 @@ export class Chest extends Phaser.GameObjects.Rectangle {
     this.disableInteractive()
     this.scene.tweens.add({ targets: this, scaleY: 0.6, duration: 200, ease: 'Bounce.Out' })
 
-    const rollCount = Phaser.Math.Between(1, 3)
+    const rollCount = Phaser.Math.Between(gameConfig.chests.minLootRolls, gameConfig.chests.maxLootRolls)
     const loot = []
     for (let i = 0; i < rollCount; i++) loot.push(rollLoot())
     return loot

@@ -1,10 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { levelFromXp, unlockedSkills, WEAPONS } from '../game/combat/weapons'
+import { gameConfig } from '../config/gameConfig'
+
+function freshXp() {
+  return Object.fromEntries(Object.keys(WEAPONS).map((id) => [id, 0]))
+}
 
 export const useWeaponStore = defineStore('weapon', () => {
-  const equipped = ref('sword')
-  const xp = ref({ sword: 0, wand: 0 })
+  const equipped = ref(gameConfig.startingWeapon)
+  const xp = ref(freshXp())
 
   const progress = computed(() => {
     const result = {}
@@ -31,8 +36,8 @@ export const useWeaponStore = defineStore('weapon', () => {
   }
 
   function reset() {
-    xp.value = { sword: 0, wand: 0 }
-    equipped.value = 'sword'
+    xp.value = freshXp()
+    equipped.value = gameConfig.startingWeapon
   }
 
   return { equipped, xp, progress, equippedProgress, equippedSkills, addXp, equip, reset }
