@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useInventoryStore } from '../../store/inventoryStore'
 import { useWeaponStore } from '../../store/weaponStore'
-import { WEAPONS } from '../../game/combat/weapons'
+import { gameConfig } from '../../config/gameConfig'
 
 const inventoryStore = useInventoryStore()
 const { slots, totalWeight } = storeToRefs(inventoryStore)
@@ -33,7 +33,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
     <div class="inventory__equipped">
       <span class="inventory__equipped-label">Equipped</span>
-      <span class="inventory__equipped-name">{{ WEAPONS[equipped].label }}</span>
+      <span class="inventory__equipped-name">{{ gameConfig.weapons[equipped].label }}</span>
       <span class="inventory__equipped-level">Lv {{ equippedProgress.level }}</span>
     </div>
 

@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { EventBus } from '../../game/EventBus'
 import { useWeaponStore } from '../../store/weaponStore'
-import { WEAPONS } from '../../game/combat/weapons'
+import { gameConfig } from '../../config/gameConfig'
 import Icon from './Icon.vue'
 
 const KEYS = ['1', '2', '3']
@@ -20,7 +20,9 @@ const slots = computed(() =>
   }))
 )
 
-const weaponLabel = computed(() => `${WEAPONS[equipped.value].label.toUpperCase()} - LV ${equippedProgress.value.level}`)
+const weaponLabel = computed(
+  () => `${gameConfig.weapons[equipped.value].label.toUpperCase()} - LV ${equippedProgress.value.level}`
+)
 
 const activeIndex = ref(null)
 

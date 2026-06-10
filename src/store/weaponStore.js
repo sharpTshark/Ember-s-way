@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { levelFromXp, unlockedSkills, WEAPONS } from '../game/combat/weapons'
+import { Weapon, createWeapons } from '../game/combat/Weapon'
 import { gameConfig } from '../config/gameConfig'
 
+const weapons = createWeapons(gameConfig.weapons)
+
 function freshXp() {
-  return Object.fromEntries(Object.keys(WEAPONS).map((id) => [id, 0]))
+  return Object.fromEntries(Object.keys(weapons).map((id) => [id, 0]))
 }
 
 export const useWeaponStore = defineStore('weapon', () => {
@@ -13,26 +15,26 @@ export const useWeaponStore = defineStore('weapon', () => {
 
   const progress = computed(() => {
     const result = {}
-    for (const id of Object.keys(WEAPONS)) {
-      result[id] = levelFromXp(xp.value[id] ?? 0)
+    for (const id of Object.keys(weapons)) {
+      result[id] = Weapon.levelFromXp(xp.value[id] ?? 0)
     }
     return result
   })
 
   const equippedProgress = computed(() => progress.value[equipped.value])
 
-  const equippedSkills = computed(() => unlockedSkills(equipped.value, equippedProgress.value.level))
+  const equippedSkills = computed(() => weapons[equipped.value].unlockedSkills(equippedProgress.value.level))
 
   function addXp(weaponId, amount) {
     if (xp.value[weaponId] === undefined) return
-    const before = levelFromXp(xp.value[weaponId]).level
+    const before = Weapon.levelFromXp(xp.value[weaponId]).level
     xp.value[weaponId] += amount
-    const after = levelFromXp(xp.value[weaponId]).level
+    const after = Weapon.levelFromXp(xp.value[weaponId]).level
     return after > before ? after : null
   }
 
   function equip(weaponId) {
-    if (WEAPONS[weaponId]) equipped.value = weaponId
+    if (weapons[weaponId]) equipped.value = weaponId
   }
 
   function reset() {

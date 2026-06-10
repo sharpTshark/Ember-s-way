@@ -1,14 +1,13 @@
 import Phaser from 'phaser'
-import { gameConfig } from '../../config/gameConfig'
+import { Entity } from './Entity'
 
-const INTERACT_RANGE = gameConfig.chests.interactRange
-const LOOT_TABLE = gameConfig.chests.lootTable
+const CHEST_DEFINITION = { size: 26, color: 0x7a5230 }
 
-function rollLoot() {
-  const totalWeight = LOOT_TABLE.reduce((sum, entry) => sum + entry.weight, 0)
+function rollLoot(lootTable) {
+  const totalWeight = lootTable.reduce((sum, entry) => sum + entry.weight, 0)
   let roll = Phaser.Math.FloatBetween(0, totalWeight)
 
-  for (const entry of LOOT_TABLE) {
+  for (const entry of lootTable) {
     if (roll < entry.weight) {
       const [min, max] = entry.amount
       return { item: entry.item, amount: Phaser.Math.Between(min, max) }
@@ -16,23 +15,26 @@ function rollLoot() {
     roll -= entry.weight
   }
 
-  const fallback = LOOT_TABLE[0]
+  const fallback = lootTable[0]
   return { item: fallback.item, amount: fallback.amount[0] }
 }
 
-export class Chest extends Phaser.GameObjects.Rectangle {
-  constructor(scene, x, y) {
-    super(scene, x, y, 26, 20, 0x7a5230)
-    this.scene = scene
+export class Chest extends Entity {
+  constructor(scene, x, y, definition) {
+    super(scene, x, y, { ...CHEST_DEFINITION, entityType: 'chest' })
+
+    this.interactRange = definition.interactRange
+    this.lootTable = definition.lootTable
+    this.minLootRolls = definition.minLootRolls
+    this.maxLootRolls = definition.maxLootRolls
     this.opened = false
 
-    scene.add.existing(this)
     this.setStrokeStyle(2, 0x4a3219)
     this.setInteractive({ useHandCursor: true })
   }
 
   isInRange(player) {
-    return Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y) <= INTERACT_RANGE
+    return Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y) <= this.interactRange
   }
 
   open() {
@@ -43,9 +45,9 @@ export class Chest extends Phaser.GameObjects.Rectangle {
     this.disableInteractive()
     this.scene.tweens.add({ targets: this, scaleY: 0.6, duration: 200, ease: 'Bounce.Out' })
 
-    const rollCount = Phaser.Math.Between(gameConfig.chests.minLootRolls, gameConfig.chests.maxLootRolls)
+    const rollCount = Phaser.Math.Between(this.minLootRolls, this.maxLootRolls)
     const loot = []
-    for (let i = 0; i < rollCount; i++) loot.push(rollLoot())
+    for (let i = 0; i < rollCount; i++) loot.push(rollLoot(this.lootTable))
     return loot
   }
 }

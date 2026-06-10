@@ -1,289 +1,124 @@
 import Phaser from 'phaser'
 import { EventBus } from '../EventBus'
 import { Player } from '../entities/Player'
-import { ResourceNode, RESOURCE_NODE_TYPES } from '../entities/ResourceNode'
-import { Enemy } from '../entities/Enemy'
-import { Chest } from '../entities/Chest'
-import { WEAPONS, unlockedSkills } from '../combat/weapons'
+import { World } from '../world/World'
+import { createWeapons } from '../combat/Weapon'
+import { CombatController } from '../systems/CombatController'
+import { InteractionController } from '../systems/InteractionController'
+import { ExtractionTimer } from '../systems/ExtractionTimer'
+import { Minimap } from '../systems/Minimap'
 import { gameConfig } from '../../config/gameConfig'
 
-const WORLD_SIZE = gameConfig.world.size
-const TILE_SIZE = gameConfig.world.tileSize
-const NODE_COUNT = gameConfig.resourceNodes.spawnCount
-const ENEMY_COUNT = gameConfig.enemies.spawnCount
-const CHEST_COUNT = gameConfig.chests.spawnCount
-
+// The main game loop: builds the world, spawns the player, wires up the
+// systems that drive combat/gathering/extraction, and connects pointer
+// input to those systems.
 export class MainGame extends Phaser.Scene {
   constructor() {
     super('MainGame')
   }
 
   create() {
-    this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE)
-    this.drawGroundGrid()
+    const { world: worldConfig, player: playerConfig } = gameConfig
 
-    this.player = new Player(this, WORLD_SIZE / 2, WORLD_SIZE / 2)
-    this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE)
+    this.physics.world.setBounds(0, 0, worldConfig.size, worldConfig.size)
+
+    this.world = new World(gameConfig)
+    this.world.build(this)
+
+    this.player = new Player(this, worldConfig.size / 2, worldConfig.size / 2, playerConfig)
+    this.cameras.main.setBounds(0, 0, worldConfig.size, worldConfig.size)
     this.cameras.main.startFollow(this.player, true)
 
-    this.harvestTarget = null
-    this.spawnResourceNodes()
+    this.weapons = createWeapons(gameConfig.weapons)
+    this.combat = new CombatController(this.player, this.weapons, gameConfig.startingWeapon)
+    this.interaction = new InteractionController(this.player)
 
-    this.chestTarget = null
-    this.spawnChests()
+    this.extractionTimer = new ExtractionTimer(this, gameConfig.extraction)
+    this.extractionTimer.start()
 
-    this.combatTarget = null
-    this.equippedWeapon = gameConfig.startingWeapon
-    this.weaponLevel = 1
-    this.lastAttackAt = 0
-    this.spawnEnemies()
+    this.minimap = new Minimap(this, gameConfig.minimap, worldConfig.size)
+    this.minimap.setup()
 
-    this.input.on('pointerdown', (pointer) => {
-      const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
-      this.player.moveTo(world.x, world.y)
-      this.harvestTarget = null
-      this.combatTarget = null
-      this.chestTarget = null
-    })
-
-    EventBus.on('hotbar-input', this.onHotbarInput, this)
-    EventBus.on('weapon-equipped', this.onWeaponEquipped, this)
-    EventBus.on('weapon-progress', this.onWeaponProgress, this)
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      EventBus.off('hotbar-input', this.onHotbarInput, this)
-      EventBus.off('weapon-equipped', this.onWeaponEquipped, this)
-      EventBus.off('weapon-progress', this.onWeaponProgress, this)
-    })
+    this.registerInputHandlers()
+    this.registerEventBusHandlers()
 
     // Placeholder survival stats, sent to Vue via the bridge until real systems exist.
-    this.stats = { ...gameConfig.player.startingStats }
+    this.stats = { ...playerConfig.startingStats }
     this.statsTimer = this.time.addEvent({
       delay: 500,
       loop: true,
       callback: () => EventBus.emit('player-stats', { ...this.stats }),
     })
 
-    this.startExtractionTimer()
-    this.setupMinimapCamera()
-
     EventBus.emit('current-scene-ready', this)
   }
 
-  spawnResourceNodes() {
-    this.resourceNodes = this.add.group()
-    const spawnMargin = TILE_SIZE * 2
+  registerInputHandlers() {
+    this.input.on('pointerdown', (pointer) => {
+      const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+      this.player.moveTo(point.x, point.y)
+      this.interaction.clearTargets()
+      this.combat.clearTarget()
+    })
 
-    for (let i = 0; i < NODE_COUNT; i++) {
-      const type = Phaser.Utils.Array.GetRandom(RESOURCE_NODE_TYPES)
-      const x = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
-      const y = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
-      const node = new ResourceNode(this, x, y, type)
+    this.world.resourceNodes.getChildren().forEach((node) => {
       node.on('pointerdown', (pointer, _x, _y, event) => {
         event.stopPropagation()
-        this.harvestTarget = node
+        this.interaction.setHarvestTarget(node)
         this.player.moveTo(node.x, node.y)
       })
-      this.resourceNodes.add(node)
-    }
-  }
-
-  pursueHarvestTarget() {
-    const node = this.harvestTarget
-    if (!node || !node.active) {
-      this.harvestTarget = null
-      return
-    }
-
-    if (node.depleted) {
-      this.harvestTarget = null
-      return
-    }
-
-    if (!node.isInRange(this.player)) return
-
-    this.player.moveTo(this.player.x, this.player.y)
-    node.harvest((loot) => {
-      EventBus.emit('item-gathered', loot)
     })
-    this.harvestTarget = null
-  }
 
-  spawnChests() {
-    this.chests = this.add.group()
-    const spawnMargin = TILE_SIZE * 2
-
-    for (let i = 0; i < CHEST_COUNT; i++) {
-      const x = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
-      const y = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
-      const chest = new Chest(this, x, y)
+    this.world.chests.getChildren().forEach((chest) => {
       chest.on('pointerdown', (pointer, _x, _y, event) => {
         event.stopPropagation()
-        this.harvestTarget = null
-        this.combatTarget = null
-        this.chestTarget = chest
+        this.interaction.clearTargets()
+        this.combat.clearTarget()
+        this.interaction.setChestTarget(chest)
         this.player.moveTo(chest.x, chest.y)
       })
-      this.chests.add(chest)
-    }
-  }
+    })
 
-  pursueChestTarget() {
-    const chest = this.chestTarget
-    if (!chest || !chest.active || chest.opened) {
-      this.chestTarget = null
-      return
-    }
-
-    if (!chest.isInRange(this.player)) return
-
-    this.player.moveTo(this.player.x, this.player.y)
-    const loot = chest.open()
-    if (loot) loot.forEach((drop) => EventBus.emit('item-gathered', drop))
-    this.chestTarget = null
-  }
-
-  spawnEnemies() {
-    this.enemies = this.add.group()
-    const spawnMargin = TILE_SIZE * 2
-
-    for (let i = 0; i < ENEMY_COUNT; i++) {
-      const x = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
-      const y = Phaser.Math.Between(spawnMargin, WORLD_SIZE - spawnMargin)
-      const enemy = new Enemy(this, x, y)
+    this.world.enemies.getChildren().forEach((enemy) => {
       enemy.on('pointerdown', (pointer, _x, _y, event) => {
         event.stopPropagation()
-        this.harvestTarget = null
-        this.combatTarget = enemy
+        this.interaction.clearTargets()
+        this.combat.setTarget(enemy)
         this.player.moveTo(enemy.x, enemy.y)
       })
-      this.enemies.add(enemy)
-    }
+    })
   }
 
-  pursueCombatTarget(time) {
-    const enemy = this.combatTarget
-    if (!enemy || !enemy.active || enemy.dead) {
-      this.combatTarget = null
-      return
-    }
+  registerEventBusHandlers() {
+    EventBus.on('hotbar-input', this.onHotbarInput, this)
+    EventBus.on('weapon-equipped', this.onWeaponEquipped, this)
+    EventBus.on('weapon-progress', this.onWeaponProgress, this)
 
-    const weapon = WEAPONS[this.equippedWeapon]
-    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
-
-    if (distance > weapon.range) {
-      this.player.moveTo(enemy.x, enemy.y)
-      return
-    }
-
-    this.player.moveTo(this.player.x, this.player.y)
-    if (time - this.lastAttackAt < weapon.cooldownMs) return
-
-    this.lastAttackAt = time
-    const damage = Phaser.Math.Between(weapon.minDamage, weapon.maxDamage)
-    enemy.takeDamage(damage)
-    EventBus.emit('weapon-hit', { weaponId: this.equippedWeapon, xp: weapon.xpPerHit, damage })
-
-    if (enemy.dead) this.combatTarget = null
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      EventBus.off('hotbar-input', this.onHotbarInput, this)
+      EventBus.off('weapon-equipped', this.onWeaponEquipped, this)
+      EventBus.off('weapon-progress', this.onWeaponProgress, this)
+    })
   }
 
   onWeaponEquipped(weaponId) {
-    if (WEAPONS[weaponId]) this.equippedWeapon = weaponId
+    this.combat.equip(weaponId)
   }
 
   onWeaponProgress({ weaponId, level }) {
-    if (weaponId === this.equippedWeapon) this.weaponLevel = level
-  }
-
-  castSkill(skill) {
-    const enemy = this.combatTarget
-    const targetText = enemy && enemy.active && !enemy.dead ? ' on target' : ''
-    console.log(`[MainGame] cast ${skill.label} (${skill.id})${targetText}`)
-
-    if (enemy && enemy.active && !enemy.dead) {
-      const weapon = WEAPONS[this.equippedWeapon]
-      const damage = Phaser.Math.Between(weapon.minDamage, weapon.maxDamage) * 2
-      enemy.takeDamage(damage)
-      EventBus.emit('weapon-hit', { weaponId: this.equippedWeapon, xp: weapon.xpPerHit, damage })
-      if (enemy.dead) this.combatTarget = null
-    }
-  }
-
-  startExtractionTimer() {
-    const { durationSeconds, destination } = gameConfig.extraction
-    this.extractionRemaining = durationSeconds
-
-    EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination })
-
-    this.extractionTimer = this.time.addEvent({
-      delay: 1000,
-      loop: true,
-      callback: () => {
-        this.extractionRemaining = Math.max(0, this.extractionRemaining - 1)
-        EventBus.emit('extraction-timer', { remaining: this.extractionRemaining, destination })
-      },
-    })
-  }
-
-  setupMinimapCamera() {
-    const { size: minimapSize, padding, backgroundColor, borderColor } = gameConfig.minimap
-
-    this.minimapCamera = this.cameras
-      .add(0, 0, minimapSize, minimapSize)
-      .setZoom(minimapSize / WORLD_SIZE)
-      .setName('minimap')
-      .setBackgroundColor(backgroundColor)
-
-    this.minimapCamera.scrollX = 0
-    this.minimapCamera.scrollY = 0
-
-    const positionMinimap = () => {
-      const { width, height } = this.scale
-      this.minimapCamera.setViewport(width - minimapSize - padding, padding, minimapSize, minimapSize)
-    }
-    positionMinimap()
-    this.scale.on('resize', positionMinimap)
-
-    const border = this.add
-      .rectangle(0, 0, minimapSize, minimapSize)
-      .setStrokeStyle(2, borderColor)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(1000)
-    border.setPosition(this.scale.width - minimapSize - padding, padding)
-    this.minimapCamera.ignore(border)
-  }
-
-  drawGroundGrid() {
-    const graphics = this.add.graphics()
-    graphics.lineStyle(1, 0x2f3a2f, 0.6)
-    for (let x = 0; x <= WORLD_SIZE; x += TILE_SIZE) {
-      graphics.lineBetween(x, 0, x, WORLD_SIZE)
-    }
-    for (let y = 0; y <= WORLD_SIZE; y += TILE_SIZE) {
-      graphics.lineBetween(0, y, WORLD_SIZE, y)
-    }
-
-    this.add.rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, 0x1c241c).setDepth(-1)
-
-    // Extraction point: "Ruined Plaza" — placeholder archway in the world's corner.
-    const margin = TILE_SIZE * 1.5
-    this.add.rectangle(margin, margin, 56, 72, 0x4a4338).setStrokeStyle(2, 0xc9a35c)
+    this.combat.setWeaponLevel(weaponId, level)
   }
 
   onHotbarInput(slotIndex) {
-    const skill = unlockedSkills(this.equippedWeapon, this.weaponLevel).find((s) => s.slot === slotIndex)
-    if (!skill) {
-      console.log(`[MainGame] hotbar slot ${slotIndex}: no skill unlocked yet`)
-      return
-    }
-    this.castSkill(skill)
+    const skill = this.combat.weapon.unlockedSkills(this.combat.weaponLevel).find((s) => s.slot === slotIndex)
+    if (!skill) return
+    this.combat.castSkill(skill)
   }
 
   update(time) {
-    this.player?.update()
-    this.enemies?.getChildren().forEach((enemy) => enemy.update())
-    this.pursueHarvestTarget()
-    this.pursueChestTarget()
-    this.pursueCombatTarget(time)
+    this.player.update()
+    this.world.enemies.getChildren().forEach((enemy) => enemy.update())
+    this.interaction.update()
+    this.combat.update(time)
   }
 }
